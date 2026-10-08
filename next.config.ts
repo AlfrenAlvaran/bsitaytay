@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
       },
     },
   },
+
+  serverExternalPackages: ["tesseract.js", "sharp", "bcrypt"],
 };
 
 export default nextConfig;
