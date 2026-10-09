@@ -21,8 +21,8 @@ export const NAV_LINKS: LinksChild[] = [
     label: "Document",
     href: "/document",
   },
-  {
-    label: "Announcement",
-    href: "/announcement",
-  },
+  // {
+  //   label: "Announcement",
+  //   href: "/announcement",
+  // },
 ];

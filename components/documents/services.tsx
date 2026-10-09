@@ -101,24 +101,24 @@ export const documents: RequestDocumentItem[] = [
     category: "Certificates & Documents",
     icon: Plane,
   },
-  {
-    title: "Senior Citizen Registration",
-    description:
-      "Registers residents aged 60 and above for national and local senior citizen benefits.",
-    tag: null,
-    fee: "Free",
-    processing: "3–5 days",
-    category: "Assistance Programs",
-    icon: Users,
-  },
-  {
-    title: "Solo Parent Registration",
-    description:
-      "ID and registration for solo parents to access welfare benefits under RA 11861.",
-    tag: null,
-    fee: "Free",
-    processing: "3–5 days",
-    category: "Assistance Programs",
-    icon: HandHeart,
-  },
+  // {
+  //   title: "Senior Citizen Registration",
+  //   description:
+  //     "Registers residents aged 60 and above for national and local senior citizen benefits.",
+  //   tag: null,
+  //   fee: "Free",
+  //   processing: "3–5 days",
+  //   category: "Assistance Programs",
+  //   icon: Users,
+  // },
+  // {
+  //   title: "Solo Parent Registration",
+  //   description:
+  //     "ID and registration for solo parents to access welfare benefits under RA 11861.",
+  //   tag: null,
+  //   fee: "Free",
+  //   processing: "3–5 days",
+  //   category: "Assistance Programs",
+  //   icon: HandHeart,
+  // },
 ];
