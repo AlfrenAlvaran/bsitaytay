@@ -1,33 +1,43 @@
+
 import "server-only";
-import { cache } from "react";
-import { cookies } from "next/headers";
+
 import { Role, verifyAccessToken } from "./auth.token";
 import { ApiError } from "@/utils/api-error";
 
-export const getSession = cache(async () => {
-  const token = (await cookies()).get("access_token")?.value;
+export async function getSession(req: Request) {
+  const cookieHeader = req.headers.get("cookie") ?? "";
+
+  const token = cookieHeader
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith("access_token="))
+    ?.slice("access_token=".length);
 
   if (!token) return null;
 
   try {
-    return verifyAccessToken(token);
-  } catch (error) {
+    return verifyAccessToken(decodeURIComponent(token));
+  } catch {
     return null;
   }
-});
+}
 
-export async function requireSession() {
-  const session = await getSession();
+export async function requireSession(req: Request) {
+  const session = await getSession(req);
 
-  if (!session) throw ApiError.unauthorized("Authentication required");
+  if (!session) {
+    throw ApiError.unauthorized("Authentication required");
+  }
 
   return session;
 }
 
-export async function requireRole(...role: Role[]) {
-  const session = await requireSession();
+export async function requireRole(req: Request, ...roles: Role[]) {
+  const session = await requireSession(req);
 
-  if (!role.includes(session.role)) throw ApiError.forbidden("Forbidden");
+  if (!roles.includes(session.role)) {
+    throw ApiError.forbidden("Forbidden");
+  }
 
   return session;
 }
