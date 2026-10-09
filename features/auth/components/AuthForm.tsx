@@ -51,6 +51,14 @@ const ROLE_DESTINATION: Record<string, string> = {
 const unexpectedMessage = (err: unknown) =>
   err instanceof HttpError && err.status === 0 ? NETWORK_MSG : GENERIC_MSG;
 
+// Expected 4xx responses (wrong password, bad OTP, duplicate email, ...) are
+// handled in the UI, so don't log them. Next.js dev shows every console.error
+// as an error overlay.
+const logUnexpected = (label: string, err: unknown) => {
+  if (err instanceof HttpError && err.status >= 400 && err.status < 500) return;
+  console.error(label, err);
+};
+
 export default function AuthForm({ type, next }: AuthFormProps) {
   const router = useRouter();
   const isRegister = type === "register";
@@ -146,7 +154,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         );
       }
     } catch (err) {
-      console.error("ID extraction failed:", err);
+      logUnexpected("ID extraction failed:", err);
       if (requestId !== idRequestRef.current) return;
       toast.error(
         "Couldn't read that ID automatically. Please fill the fields in manually or try a clearer photo.",
@@ -164,7 +172,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       const uploaded = await residentsApi.uploadPhoto(file);
       if (requestId === photoRequestRef.current) setProfileImage(uploaded);
     } catch (err) {
-      console.error("Photo upload failed:", err);
+      logUnexpected("Photo upload failed:", err);
       if (requestId === photoRequestRef.current) {
         toast.error("Couldn't upload that photo. You can try again.");
       }
@@ -194,7 +202,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
     guarded(v, async () => {
       try {
         const response = await authApi.login({
-          email: v.email,
+          email: v.email.trim().toLowerCase(),
           password: v.password,
         });
         const role = response.role.toLowerCase();
@@ -209,7 +217,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         router.replace(safeRedirect(next, destination));
         router.refresh();
       } catch (err) {
-        console.error("login failed:", err);
+        logUnexpected("login failed:", err);
         if (err instanceof HttpError && err.status === 401) {
           setError("password", { message: "Invalid email or password." });
         } else if (err instanceof HttpError && err.status !== 0) {
@@ -234,7 +242,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
     return guarded(v, async () => {
       try {
         const result = await residentsApi.register({
-          email: v.email,
+          email: v.email.trim().toLowerCase(),
           password: v.password,
           firstName: v.firstName,
           lastName: v.lastName,
@@ -261,7 +269,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         setResendIn(result.resendAvailableInSeconds);
         toast.success(`We sent a 6-digit code to ${result.email}.`);
       } catch (err) {
-        console.error("register failed:", err);
+        logUnexpected("register failed:", err);
         if (err instanceof HttpError && err.status !== 0) {
           if (err.fieldErrors?.email)
             setError("email", { message: err.fieldErrors.email });
@@ -292,7 +300,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       setResendIn(result.resendAvailableInSeconds);
       toast.success("We sent you a new code.");
     } catch (err) {
-      console.error("resend OTP failed:", err);
+      logUnexpected("resend OTP failed:", err);
       if (err instanceof HttpError && err.status === 404) {
         backToForm("Your registration expired. Please submit the form again.");
       } else if (err instanceof HttpError && err.status !== 0) {
@@ -316,7 +324,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       toast.success("Account created. You can now sign in.");
       router.push("/login");
     } catch (err) {
-      console.error("verify OTP failed:", err);
+      logUnexpected("verify OTP failed:", err);
       if (err instanceof HttpError && err.status !== 0) {
         if (err.status === 404) {
           backToForm(

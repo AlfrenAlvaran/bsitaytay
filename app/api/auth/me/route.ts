@@ -5,6 +5,6 @@ import { getCurrentUser } from "@/server/services/session.service";
 export const GET = handle(async () => {
   const { id } = await requireSession();
   const res = await getCurrentUser(id);
-
+  console.log(res)
   return ok(res, "", 200);
 });

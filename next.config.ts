@@ -16,6 +16,16 @@ const nextConfig: NextConfig = {
     },
   },
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: "/bczu9zcy/**", // your cloud name; keeps other accounts out
+      },
+    ],
+  },
+
   serverExternalPackages: ["tesseract.js", "sharp", "bcrypt"],
 };
 
