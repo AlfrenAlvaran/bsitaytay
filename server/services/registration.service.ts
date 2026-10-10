@@ -1,7 +1,5 @@
 import "server-only";
 import { randomUUID } from "crypto";
-import sharp from "sharp";
-import { PSM } from "tesseract.js";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import { after } from "next/server";
@@ -10,17 +8,14 @@ import { Resident } from "@/server/models/resident.model";
 import { PendingRegistration } from "@/server/models/pending-registration.model";
 
 import type {
-  ExtractIdResult,
   InitiateRegistrationResult,
   UploadPhotoResult,
 } from "@/features/residents/types/resident.types";
 import { RegisterResidentInput } from "@/features/residents/schema/resident.schema";
 import { uploadImage } from "@/lib/config/upload-cloudinary";
-import { parseIdText } from "@/lib/auth/id-parser";
 import { generateOtp, hashOtp, otpMatches } from "@/utils/otp";
 import { connectDB } from "@/lib/config/databse";
 import { verificationCode } from "@/utils/mail-templates";
-import { createOcrWorker } from "@/lib/ocr/create-worker";
 
 export type ResidentServiceErrorCode =
   | "EMAIL_TAKEN"
@@ -110,66 +105,7 @@ function sendOtpInBackground(email: string, name: string, code: string) {
   });
 }
 
-/* ----------------------------- OCR ----------------------------- */
-
-async function prepareForOcr(buffer: Buffer): Promise<Buffer> {
-  return sharp(buffer)
-    .rotate()
-    .resize({ width: 2000, withoutEnlargement: false })
-    .grayscale()
-    .normalize()
-    .sharpen()
-    .png()
-    .toBuffer();
-}
-
-async function extractTextFromImage(
-  buffer: Buffer,
-  mimeType: string,
-): Promise<string> {
-  if (mimeType === "application/pdf") {
-    throw new Error(
-      "PDF OCR isn't wired up. Tesseract.js only reads raster images. " +
-        "Rasterize the PDF's first page before passing it in, or upload the ID as an image.",
-    );
-  }
-
-  const image = await prepareForOcr(buffer);
-  const worker = await createOcrWorker();
-
-  try {
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-    const {
-      data: { text },
-    } = await worker.recognize(image);
-    return text;
-  } finally {
-    await worker.terminate();
-  }
-}
-
-export async function extractIdFields(
-  buffer: Buffer,
-  mimeType: string,
-): Promise<ExtractIdResult> {
-  const [rawText, uploadResult] = await Promise.all([
-    extractTextFromImage(buffer, mimeType),
-    uploadImage(buffer, "id-uploads", randomUUID()).catch((err) => {
-      console.error("Cloudinary upload failed:", err);
-      return null;
-    }),
-  ]);
-
-  const { fields, confidence } = parseIdText(rawText);
-
-  return {
-    fields,
-    confidence,
-    rawText,
-    imageUrl: uploadResult?.secureUrl ?? null,
-    cloudinaryPublicId: uploadResult?.publicId ?? null,
-  };
-}
+/* ----------------------------- Photo ----------------------------- */
 
 export async function uploadProfilePhoto(
   buffer: Buffer,
