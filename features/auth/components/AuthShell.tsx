@@ -2,18 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
-
-const display = Fraunces({
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  style: ["normal", "italic"],
-});
-const body = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"] });
+import { display, body, mono } from "@/lib/fonts";
 
 const services = [
   "Request barangay clearance",

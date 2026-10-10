@@ -1,4 +1,4 @@
-
+import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
 
   cacheComponents: true,
   partialPrefetching: true,
+
+  // Silences the "ignored package-lock.json" warning
+  turbopack: { root: path.resolve(__dirname) },
+  outputFileTracingRoot: path.resolve(__dirname),
 
   images: {
     remotePatterns: [

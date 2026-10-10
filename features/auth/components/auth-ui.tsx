@@ -1,9 +1,6 @@
-// Place at: components/auth/auth-ui.tsx
 "use client";
 
-import { IBM_Plex_Mono } from "next/font/google";
-
-export const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"] });
+import { mono as plexMono } from "@/lib/fonts";
 
 export function EyeIcon({ open }: { open: boolean }) {
   return open ? (

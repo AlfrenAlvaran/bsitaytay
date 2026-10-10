@@ -40,7 +40,7 @@ const Logo = ({ variant = "light", stacked = false }: LogoProps) => {
           alt=""
           width={40}
           height={40}
-          priority
+          loading="eager"
           className="transition-transform duration-500 ease-out group-hover:rotate-[8deg]"
         />
       </span>

@@ -17,6 +17,10 @@ const userSchema = new Schema(
       enum: ["RESIDENT", "ADMIN", "STAFF"],
       default: "RESIDENT",
     },
+    status: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );
