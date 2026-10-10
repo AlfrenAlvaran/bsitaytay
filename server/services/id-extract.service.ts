@@ -9,10 +9,10 @@ import { createOcrWorker } from "@/lib/ocr/create-worker";
 async function prepareForOcr(buffer: Buffer) {
   return sharp(buffer)
     .rotate()
-    .resize({ width: 1400 })
+    .resize({ width: 1800 })
     .grayscale()
     .normalize()
-    .sharpen()
+    .sharpen({ sigma: 0.8 })
     .png()
     .toBuffer();
 }

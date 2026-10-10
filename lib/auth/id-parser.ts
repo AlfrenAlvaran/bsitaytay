@@ -10,9 +10,9 @@ export interface ParsedIdFields {
 type Key = keyof ParsedIdFields;
 
 const LABELS: Array<[Key, RegExp]> = [
-  ["middleName", /(gitnang\s*apelyido|middle\s*names?)/i],
-  ["lastName", /(apelyido|last\s*names?|surname)/i],
-  ["firstName", /(mga\s*pangalan|given\s*names?|first\s*names?)/i],
+  ["middleName", /(gitnang\s*apelyido|m[il1|]dd[il1f|]e\s*nam\w*)/i],
+  ["lastName", /(apelyido|last\s*nam\w*|surname)/i],
+  ["firstName", /(mga\s*pangalan|giv[eo]n\s*nam\w*|first\s*nam\w*)/i],
   [
     "dateOfBirth",
     /(petsa\s*ng\s*kapanganakan|date\s*of\s*birth|birth\s*date|birthday|\bdob\b)/i,
@@ -20,7 +20,6 @@ const LABELS: Array<[Key, RegExp]> = [
   ["address", /(tirahan|address|residence)/i],
   ["idNumber", /(license\s*no|id\s*(?:no|number)|control\s*no|pcn|philsys)/i],
 ];
-
 const COMBINED_NAME_HEADER = /last\s*name.*first\s*name/i;
 
 // PhilSys cards print the 16-digit number with no label
@@ -43,11 +42,8 @@ const MONTHS: Record<string, string> = {
 
 const letterCount = (text: string) => (text.match(/\p{L}/gu) ?? []).length;
 
-// Leftover bits of bilingual labels. OCR often splits "Mga Pangalan/Given Names"
-// across lines and leaves "Given" / "Names|" behind.
 const LABEL_WORDS =
-  /\b(?:given|names?|last|first|middle|surname|date|of|birth|mga|pangalan|apelyido|gitnang|petsa|ng|kapanganakan|tirahan|address)\b/gi;
-
+  /\b(?:given|nam(?:es?)?|last|first|m[il1|]dd[il1f|]e|surname|date|of|birth|mga|pangalan|apelyido|gitnang|petsa|ng|kapanganakan|tirahan|address)\b/gi;
 const withoutLabelWords = (text: string) => text.replace(LABEL_WORDS, " ");
 
 function labelOf(line: string): Key | null {

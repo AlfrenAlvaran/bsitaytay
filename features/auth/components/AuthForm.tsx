@@ -24,6 +24,7 @@ import {
 import { safeRedirect } from "../utils/safe-redirect";
 import { passwordStrength, StrengthMeter } from "./auth-ui";
 import { CameraCapture } from "./CameraCapture";
+import { IdScanner } from "./IdScanner";
 import { FieldError, IdUploadField, SelfieUploadField } from "./UploadField";
 import { OtpStep } from "./OtpStep";
 import { residentsApi } from "../api/register.api";
@@ -68,6 +69,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showIdCamera, setShowIdCamera] = useState(false);
   const [showSelfieCamera, setShowSelfieCamera] = useState(false);
+  const [idMode, setIdMode] = useState<"upload" | null>(null);
   const [idDoc, setIdDoc] = useState<ExtractIdResponse | null>(null);
   const [profileImage, setProfileImage] = useState<UploadedPhoto | null>(null);
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
@@ -235,7 +237,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       return;
     }
     if (!idDoc?.imageUrl) {
-      toast.error("Please upload (or take a photo of) a valid ID first.");
+      toast.error("Please scan or upload a valid ID first.");
       return;
     }
 
@@ -399,23 +401,113 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       </div>
 
       {isRegister && (
-        <div className="space-y-2">
-          <IdUploadField
-            upload={idUpload}
-            onFileSelected={runIdExtraction}
-            onFileRemoved={() => {
-              idRequestRef.current++;
-              setIdDoc(null);
-              setExtracting(false);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowIdCamera(true)}
-            className="text-xs font-semibold text-[#B8860B] hover:underline"
-          >
-            Or take a photo of your ID instead
-          </button>
+        <div className="space-y-3">
+          <p className="text-[13px] font-medium text-slate-700">Valid ID</p>
+
+          {idMode !== "upload" ? (
+            <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowIdCamera(true)}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#B8860B]/10 text-[#B8860B]">
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 8a2 2 0 012-2h1.5l1-1.5h9l1 1.5H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"
+                    />
+                    <circle cx="12" cy="13" r="3.5" />
+                  </svg>
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-slate-900">
+                    Scan ID
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    Take a photo with your camera
+                  </span>
+                </span>
+                <span className="rounded-full bg-[#B8860B]/10 px-2 py-0.5 text-[10px] font-semibold text-[#B8860B]">
+                  Recommended
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIdMode("upload")}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                    />
+                  </svg>
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-slate-900">
+                    Upload ID
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    Choose a JPG, PNG, WEBP or PDF
+                  </span>
+                </span>
+                <svg
+                  className="h-4 w-4 text-slate-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <>
+              <IdUploadField
+                upload={idUpload}
+                onFileSelected={runIdExtraction}
+                onFileRemoved={() => {
+                  idRequestRef.current++;
+                  setIdDoc(null);
+                  setExtracting(false);
+                  setIdMode(null); // back to the two options
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowIdCamera(true)}
+                className="text-xs font-semibold text-[#B8860B] hover:underline"
+              >
+                Scan with camera instead
+              </button>
+            </>
+          )}
+
           {extracting && (
             <p className="text-xs text-slate-500" role="status">
               Reading details from your ID...
@@ -637,13 +729,18 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       </button>
 
       {showIdCamera && (
-        <CameraCapture
+        <IdScanner
           onCapture={(file) => {
             void idUpload.select(file);
             void runIdExtraction(file);
+            setIdMode("upload"); // shows the captured photo with its remove button
             setShowIdCamera(false);
           }}
           onClose={() => setShowIdCamera(false)}
+          onUploadInstead={() => {
+            setShowIdCamera(false);
+            setIdMode("upload");
+          }}
         />
       )}
       {showSelfieCamera && (
