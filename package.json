@@ -49,6 +49,7 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@tanstack/react-query-devtools": "^5.104.1",
+    "@tesseract.js-data/eng": "^1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.0"
   }
