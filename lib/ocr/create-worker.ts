@@ -1,4 +1,5 @@
 import "server-only";
+import os from "os";
 import path from "path";
 import { createWorker } from "tesseract.js";
 
@@ -10,6 +11,8 @@ export function createOcrWorker() {
     ),
     corePath: path.join(process.cwd(), "node_modules/tesseract.js-core"),
     langPath: path.join(process.cwd(), "tessdata"),
-    cachePath: "/tmp", // /var/task is read-only on Vercel
+    cachePath: os.tmpdir(),
+    logger: (m) => console.log("[tesseract]", m.status, m.progress),
+    errorHandler: (err) => console.error("[tesseract error]", err),
   });
 }
