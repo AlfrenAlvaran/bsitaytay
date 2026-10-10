@@ -1,9 +1,10 @@
 import "server-only";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
-import { createWorker, PSM } from "tesseract.js";
+import { PSM } from "tesseract.js";
 import { uploadImage } from "@/lib/config/upload-cloudinary";
 import { parseIdText } from "@/lib/auth/id-parser";
+import { createOcrWorker } from "@/lib/ocr/create-worker";
 
 async function prepareForOcr(buffer: Buffer) {
   return sharp(buffer)
@@ -18,7 +19,7 @@ async function prepareForOcr(buffer: Buffer) {
 
 async function readText(buffer: Buffer): Promise<string> {
   const image = await prepareForOcr(buffer);
-  const worker = await createWorker("eng");
+  const worker = await createOcrWorker();
   try {
     await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
     const { data } = await worker.recognize(image);
@@ -36,11 +37,6 @@ export async function extractIdFields(buffer: Buffer) {
       return null;
     }),
   ]);
-
-  // temporary: remove after testing, it prints personal data
-  if (process.env.NODE_ENV !== "production") {
-    // console.log("---- OCR RAW ----\n" + rawText + "\n---- END ----");
-  }
 
   const { fields, confidence } = parseIdText(rawText);
 

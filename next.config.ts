@@ -24,6 +24,15 @@ const nextConfig: NextConfig = {
   },
 
   serverExternalPackages: ["tesseract.js", "sharp", "bcrypt"],
+
+  // Ship Tesseract's worker, WASM core and language data to the serverless function
+  outputFileTracingIncludes: {
+    "/api/residents/id-scan/extract": [
+      "./node_modules/tesseract.js/**/*",
+      "./node_modules/tesseract.js-core/**/*",
+      "./tessdata/**/*",
+    ],
+  },
 };
 
 export default nextConfig;

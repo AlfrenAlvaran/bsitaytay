@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
-import { createWorker, PSM } from "tesseract.js";
+import { PSM } from "tesseract.js";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import { after } from "next/server";
@@ -20,6 +20,7 @@ import { parseIdText } from "@/lib/auth/id-parser";
 import { generateOtp, hashOtp, otpMatches } from "@/utils/otp";
 import { connectDB } from "@/lib/config/databse";
 import { verificationCode } from "@/utils/mail-templates";
+import { createOcrWorker } from "@/lib/ocr/create-worker";
 
 export type ResidentServiceErrorCode =
   | "EMAIL_TAKEN"
@@ -108,6 +109,7 @@ function sendOtpInBackground(email: string, name: string, code: string) {
     }
   });
 }
+
 /* ----------------------------- OCR ----------------------------- */
 
 async function prepareForOcr(buffer: Buffer): Promise<Buffer> {
@@ -133,7 +135,7 @@ async function extractTextFromImage(
   }
 
   const image = await prepareForOcr(buffer);
-  const worker = await createWorker("eng");
+  const worker = await createOcrWorker();
 
   try {
     await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
@@ -247,7 +249,7 @@ export async function resendRegistrationOtp(
   );
 
   const p = pending.payload as unknown as PendingPayload;
-  await verificationCode(email, fullName(p), code);
+  sendOtpInBackground(email, fullName(p), code);
 
   return otpResult(email);
 }
@@ -273,7 +275,7 @@ export async function verifyRegistration(rawEmail: string, otp: string) {
   const updated = await PendingRegistration.findOneAndUpdate(
     { email },
     { $inc: { attempts: 1 } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
   if (!updated) throw noPendingError();
 
