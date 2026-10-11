@@ -25,6 +25,13 @@ const COMBINED_NAME_HEADER = /last\s*name.*first\s*name/i;
 // PhilSys cards print the 16-digit number with no label
 const PHILSYS_NUMBER = /\b\d{4}-\d{4}-\d{4}-\d{4}\b/;
 
+// PhilHealth PIN: 02-250660607-5 (OCR may add spaces or en dashes)
+const PHILHEALTH_PIN = /\b\d{2}\s?[-–]\s?\d{9}\s?[-–]\s?\d\b/;
+
+// Card header/footer text that must never be read as a name or address
+const CARD_NOISE =
+  /republic|philippines|philhealth|health\s*insurance|corporation|partner|signature/i;
+
 const MONTHS: Record<string, string> = {
   jan: "01",
   feb: "02",
@@ -197,6 +204,50 @@ function splitFullName(
   };
 }
 
+/**
+ * Layout-based fallback for cards that print values with no labels
+ * (e.g. PhilHealth). Uses the date-of-birth line as an anchor:
+ *   name    = closest letters-only line above it
+ *   address = text lines below it, until footer noise
+ * Only fills fields the label pass left empty.
+ */
+function fillFromLayout(lines: string[], fields: ParsedIdFields) {
+  // Anchor: first line that contains a parseable date ("OCTOBER 15, 2004 - MALE")
+  const dobIdx = lines.findIndex((line) => parseDate(line) !== null);
+  if (dobIdx === -1) return;
+
+  fields.dateOfBirth ??= parseDate(lines[dobIdx]);
+
+  // Name: closest letters-only line above the DOB, skipping header noise
+  if (!fields.firstName && !fields.lastName) {
+    for (let j = dobIdx - 1; j >= Math.max(0, dobIdx - 3); j--) {
+      const line = lines[j];
+      if (/\d/.test(line) || CARD_NOISE.test(line)) continue;
+      if (letterCount(line) < 5) continue;
+
+      const split = splitFullName(line); // handles "LAST, FIRST MIDDLE"
+      fields.lastName = split.lastName;
+      fields.firstName = split.firstName;
+      fields.middleName ??= split.middleName;
+      break;
+    }
+  }
+
+  // Address: text lines after the DOB line, until noise like "Signature"
+  if (!fields.address) {
+    const parts: string[] = [];
+    for (let j = dobIdx + 1; j < lines.length && parts.length < 3; j++) {
+      const line = lines[j];
+      if (CARD_NOISE.test(line)) break;
+      if (PHILHEALTH_PIN.test(line) || PHILSYS_NUMBER.test(line)) continue;
+      if (letterCount(line) < 3) continue;
+      parts.push(line.replace(/[\s,]+$/, "")); // "TAYTAY," -> "TAYTAY"
+    }
+    const joined = parts.join(", ").replace(/\s+/g, " ").trim();
+    fields.address = letterCount(joined) >= 5 ? joined : null;
+  }
+}
+
 export function parseIdText(rawText: string): {
   fields: ParsedIdFields;
   confidence: number;
@@ -215,6 +266,7 @@ export function parseIdText(rawText: string): {
     idNumber: null,
   };
 
+  // Pass 1: labeled cards
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
@@ -265,6 +317,7 @@ export function parseIdText(rawText: string): {
     }
   }
 
+  // "Name: ..." / "Full Name ..." fallback
   if (!fields.firstName && !fields.lastName) {
     for (let i = 0; i < lines.length; i++) {
       const match = lines[i].match(/^(?:full\s*)?name\b\s*[:\-]?\s*(.*)$/i);
@@ -280,8 +333,15 @@ export function parseIdText(rawText: string): {
     }
   }
 
+  // Pass 2: unlabeled cards (PhilHealth, etc.)
+  fillFromLayout(lines, fields);
+
+  // ID number fallbacks for unlabeled cards
   if (!fields.idNumber) {
-    fields.idNumber = rawText.match(PHILSYS_NUMBER)?.[0] ?? null;
+    const pin = rawText.match(PHILHEALTH_PIN)?.[0];
+    fields.idNumber = pin
+      ? pin.replace(/\s/g, "").replace(/–/g, "-")
+      : (rawText.match(PHILSYS_NUMBER)?.[0] ?? null);
   }
 
   const found = Object.values(fields).filter(Boolean).length;

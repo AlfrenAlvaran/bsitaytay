@@ -3,8 +3,7 @@ import { z } from "zod";
 
 const email = z.string().trim().toLowerCase().pipe(z.email());
 
-// Only accept images that were uploaded to YOUR Cloudinary account,
-// so a client can't submit an arbitrary URL as their "ID image".
+
 const cloudinaryUrl = z
   .url()
   .refine(

@@ -5,14 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Bell,
   FilePlus2,
   LayoutDashboard,
   ListChecks,
   LogOut,
-  Megaphone,
   Menu,
-  Phone,
   User,
   X,
   type LucideIcon,
@@ -23,6 +20,7 @@ import {
   CURRENT_USER_KEY,
   useCurrentUser,
 } from "@/features/auth/hooks/useCurrentUser";
+import { HttpError } from "@/lib/http/client";
 import Image from "next/image";
 
 type NavItem = {
@@ -77,7 +75,13 @@ export function ResidentShell({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  const { data: user, isLoading, isError } = useCurrentUser();
+  const {
+    data: user,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } = useCurrentUser({ force: true });
 
   const name = user ? `${user.firstName} ${user.lastName}` : "";
 
@@ -86,10 +90,14 @@ export function ResidentShell({ children }: { children: React.ReactNode }) {
   // Close the drawer after navigating
   useEffect(() => setOpen(false), [pathname]);
 
-  // Redirect when there is no valid session
+  // Redirect only when the session is really gone. Wait for any in-flight
+  // fetch so a stale cached error can't bounce a freshly logged-in user, and
+  // ignore transient failures (network, 5xx).
   useEffect(() => {
-    if (!isLoading && (isError || !user)) router.replace("/login");
-  }, [isLoading, isError, user, router]);
+    if (isLoading || isFetching) return;
+    const unauthorized = error instanceof HttpError && error.status === 401;
+    if (unauthorized || (!isError && !user)) router.replace("/login");
+  }, [isLoading, isFetching, isError, error, user, router]);
 
   const signOut = async () => {
     try {
@@ -153,7 +161,7 @@ export function ResidentShell({ children }: { children: React.ReactNode }) {
                   {section.group}
                 </p>
               )}
-              {section.items.map(({ label, href, icon: Icon, badge }) => {
+              {section.items.map(({ label, href, icon: Icon }) => {
                 const active = isActive(href);
                 return (
                   <Link
@@ -168,11 +176,6 @@ export function ResidentShell({ children }: { children: React.ReactNode }) {
                   >
                     <Icon className="size-[18px]" />
                     {label}
-                    {/* {badge ? (
-                      <span className="ml-auto rounded-full bg-amber-500 px-2 text-xs font-bold text-slate-900">
-                        {badge}
-                      </span>
-                    ) : null} */}
                   </Link>
                 );
               })}

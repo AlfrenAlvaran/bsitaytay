@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { CURRENT_USER_KEY } from "../hooks/useCurrentUser";
 import CustomInput from "@/components/ui/CustomInput";
 import { useAttemptThrottle } from "../hooks/useAttemptThrottle";
 import { useMediaFileUpload } from "../hooks/useMediaFileUpload";
@@ -60,8 +62,81 @@ const logUnexpected = (label: string, err: unknown) => {
   console.error(label, err);
 };
 
+/* -------------------------------------------------------------------------- */
+/* Loading UI: progress bar + skeleton                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The API calls don't report real progress, so this eases toward 90% while the
+ * request is running and snaps to 100% when it finishes.
+ */
+function useSimulatedProgress(active: boolean) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (active) {
+      setValue(8);
+      const interval = setInterval(() => {
+        setValue((v) => (v >= 90 ? v : v + (90 - v) * 0.08 + 0.5));
+      }, 300);
+      return () => clearInterval(interval);
+    }
+
+    setValue((v) => (v > 0 ? 100 : 0));
+    const timeout = setTimeout(() => setValue(0), 500);
+    return () => clearTimeout(timeout);
+  }, [active]);
+
+  return value;
+}
+
+function ProgressBar({
+  value,
+  label,
+  className = "",
+}: {
+  value: number;
+  label: string;
+  className?: string;
+}) {
+  if (value <= 0) return null;
+  const pct = Math.min(100, Math.round(value));
+
+  return (
+    <div className={className} role="status" aria-live="polite">
+      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+        <span>{label}</span>
+        <span className="tabular-nums">{pct}%</span>
+      </div>
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={label}
+      >
+        <div
+          className="h-full rounded-full bg-[#B8860B] transition-[width] duration-300 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FieldSkeleton() {
+  return (
+    <div className="space-y-2" aria-hidden="true">
+      <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
+      <div className="h-11 w-full animate-pulse rounded-lg bg-slate-100" />
+    </div>
+  );
+}
+
 export default function AuthForm({ type, next }: AuthFormProps) {
   const router = useRouter();
+  const qc = useQueryClient();
   const isRegister = type === "register";
 
   const [loading, setLoading] = useState(false);
@@ -81,6 +156,10 @@ export default function AuthForm({ type, next }: AuthFormProps) {
   const idRequestRef = useRef(0);
   const photoRequestRef = useRef(0);
   const throttle = useAttemptThrottle();
+
+  const idProgress = useSimulatedProgress(extracting);
+  const photoProgress = useSimulatedProgress(uploadingPhoto);
+  const submitProgress = useSimulatedProgress(loading);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -216,6 +295,9 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         }
 
         toast.success("Welcome Back");
+        // Drop the cached 401 from before login so the resident shell
+        // fetches the real user instead of redirecting back to /login.
+        qc.removeQueries({ queryKey: CURRENT_USER_KEY });
         router.replace(safeRedirect(next, destination));
         router.refresh();
       } catch (err) {
@@ -380,6 +462,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
       autoComplete="on"
       className="space-y-6"
       onSubmit={onSubmit}
+      aria-busy={loading || extracting || uploadingPhoto}
     >
       <div
         inert
@@ -508,11 +591,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
             </>
           )}
 
-          {extracting && (
-            <p className="text-xs text-slate-500" role="status">
-              Reading details from your ID...
-            </p>
-          )}
+          <ProgressBar value={idProgress} label="Reading details from your ID..." />
         </div>
       )}
 
@@ -528,43 +607,49 @@ export default function AuthForm({ type, next }: AuthFormProps) {
               setUploadingPhoto(false);
             }}
           />
-          {uploadingPhoto && (
-            <p className="text-xs text-slate-500" role="status">
-              Uploading photo...
-            </p>
-          )}
+          <ProgressBar value={photoProgress} label="Uploading photo..." />
         </div>
       )}
 
       {isRegister && (
         <>
-          <CustomInput
-            control={control}
-            name="lastName"
-            label="Last Name"
-            type="text"
-            placeholder="Dela Cruz"
-            autoComplete="family-name"
-            maxLength={80}
-          />
-          <CustomInput
-            control={control}
-            name="firstName"
-            label="First Name"
-            type="text"
-            placeholder="Juan"
-            autoComplete="given-name"
-            maxLength={80}
-          />
-          <CustomInput
-            control={control}
-            name="middleName"
-            label="Middle Name (optional)"
-            type="text"
-            placeholder="Santos"
-            autoComplete="additional-name"
-            maxLength={80}
-          />
+          {extracting ? (
+            <>
+              <FieldSkeleton />
+              <FieldSkeleton />
+              <FieldSkeleton />
+            </>
+          ) : (
+            <>
+              <CustomInput
+                control={control}
+                name="lastName"
+                label="Last Name"
+                type="text"
+                placeholder="Dela Cruz"
+                autoComplete="family-name"
+                maxLength={80}
+              />
+              <CustomInput
+                control={control}
+                name="firstName"
+                label="First Name"
+                type="text"
+                placeholder="Juan"
+                autoComplete="given-name"
+                maxLength={80}
+              />
+              <CustomInput
+                control={control}
+                name="middleName"
+                label="Middle Name (optional)"
+                type="text"
+                placeholder="Santos"
+                autoComplete="additional-name"
+                maxLength={80}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -589,23 +674,32 @@ export default function AuthForm({ type, next }: AuthFormProps) {
             autoComplete="tel"
             maxLength={13}
           />
-          <CustomInput
-            control={control}
-            name="address"
-            label="Address"
-            type="text"
-            placeholder="Street, Barangay, City"
-            autoComplete="street-address"
-            maxLength={240}
-          />
-          <CustomInput
-            control={control}
-            name="dateOfBirth"
-            label="Date of Birth (optional)"
-            type="date"
-            placeholder=""
-            autoComplete="bday"
-          />
+          {extracting ? (
+            <>
+              <FieldSkeleton />
+              <FieldSkeleton />
+            </>
+          ) : (
+            <>
+              <CustomInput
+                control={control}
+                name="address"
+                label="Address"
+                type="text"
+                placeholder="Street, Barangay, City"
+                autoComplete="street-address"
+                maxLength={240}
+              />
+              <CustomInput
+                control={control}
+                name="dateOfBirth"
+                label="Date of Birth (optional)"
+                type="date"
+                placeholder=""
+                autoComplete="bday"
+              />
+            </>
+          )}
         </>
       )}
 
@@ -689,44 +783,50 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={
-          loading || extracting || uploadingPhoto || throttle.isRateLimited
-        }
-        aria-busy={loading}
-        className="w-full flex items-center justify-center gap-2 py-3 bg-[#0F172A] hover:bg-[#1E293B] active:scale-[0.99] disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-all duration-150"
-      >
-        {loading ? (
-          <>
-            <svg
-              className="w-4 h-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth={4}
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              />
-            </svg>
-            {isRegister ? "Creating account..." : "Signing in..."}
-          </>
-        ) : isRegister ? (
-          "Create account"
-        ) : (
-          "Sign in"
-        )}
-      </button>
+      <div className="space-y-2">
+        <ProgressBar
+          value={submitProgress}
+          label={isRegister ? "Creating your account..." : "Signing you in..."}
+        />
+        <button
+          type="submit"
+          disabled={
+            loading || extracting || uploadingPhoto || throttle.isRateLimited
+          }
+          aria-busy={loading}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-[#0F172A] hover:bg-[#1E293B] active:scale-[0.99] disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-all duration-150"
+        >
+          {loading ? (
+            <>
+              <svg
+                className="w-4 h-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth={4}
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+              {isRegister ? "Creating account..." : "Signing in..."}
+            </>
+          ) : isRegister ? (
+            "Create account"
+          ) : (
+            "Sign in"
+          )}
+        </button>
+      </div>
 
       {showIdCamera && (
         <IdScanner

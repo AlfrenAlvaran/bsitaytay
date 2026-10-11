@@ -9,7 +9,11 @@ export const CURRENT_USER_KEY = ["auth", "me"] as const;
 const hasSessionHint = () =>
   document.cookie.split("; ").some((c) => c.startsWith("logged_in="));
 
-export function useCurrentUser() {
+type Options = {
+  force?: boolean;
+};
+
+export function useCurrentUser({ force = false }: Options = {}) {
   const [hint, setHint] = useState<boolean | null>(null); // null = not checked yet
 
   useEffect(() => {
@@ -19,7 +23,7 @@ export function useCurrentUser() {
   const query = useQuery({
     queryKey: CURRENT_USER_KEY,
     queryFn: authApi.me,
-    enabled: hint === true,
+    enabled: force || hint === true,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
@@ -27,6 +31,6 @@ export function useCurrentUser() {
   return {
     ...query,
     // avoid a "Sign In" flash before the cookie check runs
-    isLoading: hint === null || query.isLoading,
+    isLoading: (!force && hint === null) || query.isLoading,
   };
 }
