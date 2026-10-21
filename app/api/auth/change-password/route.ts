@@ -9,8 +9,6 @@ import {
 import { requireUser } from "@/server/services/require-user";
 import { AuthError } from "@/server/services/require-admin";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
