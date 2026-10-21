@@ -1,12 +1,15 @@
 export type Role = "RESIDENT" | "STAFF" | "ADMIN";
 
 export interface AuthUser {
-  id: number;
+  id: string;
   email: string;
-  role: Role;
+  role: "RESIDENT" | "ADMIN" | "STAFF";
   firstName?: string | null;
   lastName?: string | null;
   profileImageUrl?: string | null;
+  position?: string | null;
+  permissions?: string[];
+  mustChangePassword?: boolean;
 }
 
 export interface ExtractedIdFields {

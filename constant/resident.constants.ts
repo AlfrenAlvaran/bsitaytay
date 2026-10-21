@@ -1,4 +1,4 @@
-export const GENDERS = ["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"] as const;
+export const GENDERS = ["MALE", "FEMALE", "OTHER"] as const;
 
 export const CIVIL_STATUSES = [
   "SINGLE",
@@ -6,34 +6,37 @@ export const CIVIL_STATUSES = [
   "WIDOWED",
   "SEPARATED",
   "DIVORCED",
+  "ANNULLED",
 ] as const;
 
-export const GENDER_LABELS: Record<(typeof GENDERS)[number], string> = {
+export type Gender = (typeof GENDERS)[number];
+export type CivilStatus = (typeof CIVIL_STATUSES)[number];
+
+export const GENDER_LABELS: Record<Gender, string> = {
   MALE: "Male",
   FEMALE: "Female",
   OTHER: "Other",
-  PREFER_NOT_TO_SAY: "Prefer not to say",
 };
 
-export const CIVIL_STATUS_LABELS: Record<
-  (typeof CIVIL_STATUSES)[number],
-  string
-> = {
+export const CIVIL_STATUS_LABELS: Record<CivilStatus, string> = {
   SINGLE: "Single",
   MARRIED: "Married",
   WIDOWED: "Widowed",
   SEPARATED: "Separated",
   DIVORCED: "Divorced",
+  ANNULLED: "Annulled",
 };
 
-
-export function computeAge(dob?: string | Date | null): number | null {
+export function computeAge(
+  dob: Date | string | null | undefined,
+): number | null {
   if (!dob) return null;
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age >= 0 ? age : null;
 }

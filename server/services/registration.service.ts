@@ -78,7 +78,6 @@ const tooManyAttemptsError = () =>
     "OTP_TOO_MANY_ATTEMPTS",
   );
 
-// purgeAt (expiry + 24h) feeds the TTL index that cleans up old rows
 const otpTimes = () => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -105,8 +104,6 @@ function sendOtpInBackground(email: string, name: string, code: string) {
   });
 }
 
-/* ----------------------------- Photo ----------------------------- */
-
 export async function uploadProfilePhoto(
   buffer: Buffer,
 ): Promise<UploadPhotoResult> {
@@ -117,8 +114,6 @@ export async function uploadProfilePhoto(
   );
   return { imageUrl: secureUrl, cloudinaryPublicId: publicId };
 }
-
-/* ------------------------ Registration + OTP ------------------------ */
 
 export async function initiateRegistration(
   input: RegisterResidentInput,
@@ -206,8 +201,6 @@ export async function verifyRegistration(rawEmail: string, otp: string) {
 
   if (pending.attempts >= MAX_OTP_ATTEMPTS) throw tooManyAttemptsError();
 
-  // Atomically count this attempt first, so parallel requests
-  // can't exceed the limit via a read-then-write race.
   const updated = await PendingRegistration.findOneAndUpdate(
     { email },
     { $inc: { attempts: 1 } },
@@ -232,7 +225,6 @@ export async function verifyRegistration(rawEmail: string, otp: string) {
 
 async function createResident(payload: PendingPayload) {
   try {
-    // Transactions need a replica set (MongoDB Atlas has one by default).
     return await mongoose.connection.transaction(async (session) => {
       const [user] = await User.create(
         [
@@ -253,11 +245,12 @@ async function createResident(payload: PendingPayload) {
             firstName: payload.firstName,
             lastName: payload.lastName,
             middleName: payload.middleName || undefined,
+            gender: payload.gender,
+            civilStatus: payload.civilStatus,
+            nationality: payload.nationality || "Filipino",
             phone: payload.phone,
             address: payload.address,
-            dateOfBirth: payload.dateOfBirth
-              ? new Date(payload.dateOfBirth)
-              : undefined,
+            dateOfBirth: new Date(payload.dateOfBirth),
             profileImageUrl: payload.profileImage?.imageUrl,
             profileImagePublicId: payload.profileImage?.cloudinaryPublicId,
             documents: doc
@@ -288,7 +281,6 @@ async function createResident(payload: PendingPayload) {
       };
     });
   } catch (err) {
-    // 11000 = duplicate key (email registered between initiate and verify)
     if ((err as { code?: number }).code === 11000) {
       throw new ResidentServiceError(
         "An account with this email already exists.",

@@ -1,5 +1,11 @@
 import "server-only";
-import { Schema, model, models } from "mongoose";
+import { Schema, model, models, InferSchemaType } from "mongoose";
+import {
+  GENDERS,
+  CIVIL_STATUSES,
+  computeAge,
+} from "@/constant/resident.constants";
+export { GENDERS, CIVIL_STATUSES };
 
 const documentSchema = new Schema(
   {
@@ -21,17 +27,33 @@ const residentSchema = new Schema(
       required: true,
       unique: true,
     },
-    firstName: { type: String, required: true },
-    middleName: String,
-    lastName: { type: String, required: true },
-    phone: String,
-    address: String,
-    dateOfBirth: Date,
+    firstName: { type: String, required: true, trim: true },
+    middleName: { type: String, trim: true },
+    lastName: { type: String, required: true, trim: true },
+    suffix: { type: String, trim: true },
+    gender: { type: String, enum: GENDERS, required: true },
+    civilStatus: { type: String, enum: CIVIL_STATUSES, required: true },
+    nationality: { type: String, default: "Filipino", trim: true },
+    dateOfBirth: { type: Date, required: true },
+    placeOfBirth: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    address: { type: String, trim: true },
+    occupation: { type: String, trim: true },
+    voterStatus: { type: Boolean, default: false },
     profileImageUrl: String,
     profileImagePublicId: String,
     documents: [documentSchema],
   },
   { timestamps: true },
 );
+
+residentSchema.virtual("age").get(function () {
+  return computeAge(this.dateOfBirth);
+});
+
+residentSchema.set("toJSON", { virtuals: true });
+residentSchema.set("toObject", { virtuals: true });
+
+export type ResidentType = InferSchemaType<typeof residentSchema>;
 
 export const Resident = models.Resident ?? model("Resident", residentSchema);

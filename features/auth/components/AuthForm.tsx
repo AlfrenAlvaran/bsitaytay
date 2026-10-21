@@ -15,6 +15,7 @@ import {
   type ExtractIdResponse,
   type UploadedPhoto,
 } from "@/features/residents/types/resident.types";
+
 import { HttpError } from "@/lib/http/client";
 import { idFileSchema, selfieFileSchema } from "../schema/file.schema";
 import { authApi } from "../api/auth.api";
@@ -24,12 +25,22 @@ import {
   type AuthType,
 } from "../schema/auth.schema";
 import { safeRedirect } from "../utils/safe-redirect";
+import { replaceBackgroundWithWhite } from "../utils/whiten-background";
 import { passwordStrength, StrengthMeter } from "./auth-ui";
 import { CameraCapture } from "./CameraCapture";
 import { IdScanner } from "./IdScanner";
 import { FieldError, IdUploadField, SelfieUploadField } from "./UploadField";
+
 import { OtpStep } from "./OtpStep";
 import { residentsApi } from "../api/register.api";
+import {
+  GENDERS,
+  CIVIL_STATUSES,
+  GENDER_LABELS,
+  CIVIL_STATUS_LABELS,
+  computeAge,
+} from "@/constant/resident.constants";
+import { SelectField } from "@/components/ui/SelectField";
 
 interface AuthFormProps {
   type: AuthType;
@@ -51,25 +62,23 @@ const ROLE_DESTINATION: Record<string, string> = {
   resident: "/resident",
 };
 
+const GENDER_OPTIONS = GENDERS.map((v) => ({
+  value: v,
+  label: GENDER_LABELS[v],
+}));
+const CIVIL_STATUS_OPTIONS = CIVIL_STATUSES.map((v) => ({
+  value: v,
+  label: CIVIL_STATUS_LABELS[v],
+}));
+
 const unexpectedMessage = (err: unknown) =>
   err instanceof HttpError && err.status === 0 ? NETWORK_MSG : GENERIC_MSG;
 
-// Expected 4xx responses (wrong password, bad OTP, duplicate email, ...) are
-// handled in the UI, so don't log them. Next.js dev shows every console.error
-// as an error overlay.
 const logUnexpected = (label: string, err: unknown) => {
   if (err instanceof HttpError && err.status >= 400 && err.status < 500) return;
   console.error(label, err);
 };
 
-/* -------------------------------------------------------------------------- */
-/* Loading UI: progress bar + skeleton                                        */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The API calls don't report real progress, so this eases toward 90% while the
- * request is running and snaps to 100% when it finishes.
- */
 function useSimulatedProgress(active: boolean) {
   const [value, setValue] = useState(0);
 
@@ -142,6 +151,8 @@ export default function AuthForm({ type, next }: AuthFormProps) {
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [whitePreviewUrl, setWhitePreviewUrl] = useState<string | null>(null);
   const [showIdCamera, setShowIdCamera] = useState(false);
   const [showSelfieCamera, setShowSelfieCamera] = useState(false);
   const [idMode, setIdMode] = useState<"upload" | null>(null);
@@ -167,6 +178,13 @@ export default function AuthForm({ type, next }: AuthFormProps) {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
+  // Free the object URL used for the white-background preview.
+  useEffect(() => {
+    return () => {
+      if (whitePreviewUrl) URL.revokeObjectURL(whitePreviewUrl);
+    };
+  }, [whitePreviewUrl]);
+
   const idUpload = useMediaFileUpload(
     idFileSchema,
     "This file doesn't look like a valid JPG, PNG, WEBP, or PDF. Try re-exporting it.",
@@ -186,6 +204,9 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         firstName: "",
         lastName: "",
         middleName: "",
+        gender: "" as AuthFormValues["gender"],
+        civilStatus: "" as AuthFormValues["civilStatus"],
+        nationality: "Filipino",
         email: "",
         phone: "",
         address: "",
@@ -248,9 +269,32 @@ export default function AuthForm({ type, next }: AuthFormProps) {
   const runPhotoUpload = async (file: File) => {
     const requestId = ++photoRequestRef.current;
     setUploadingPhoto(true);
+    setProcessingPhoto(true);
     setProfileImage(null);
+    setWhitePreviewUrl(null);
+
     try {
-      const uploaded = await residentsApi.uploadPhoto(file);
+      // Step 1: replace the background with white (falls back to the original)
+      let toUpload = file;
+      try {
+        toUpload = await replaceBackgroundWithWhite(file);
+      } catch (err) {
+        logUnexpected("Background removal failed, using original:", err);
+        if (requestId === photoRequestRef.current) {
+          toast.info(
+            "Couldn't remove the background, using your original photo.",
+          );
+        }
+      }
+      if (requestId !== photoRequestRef.current) return;
+
+      setWhitePreviewUrl(
+        toUpload === file ? null : URL.createObjectURL(toUpload),
+      );
+      setProcessingPhoto(false);
+
+      // Step 2: upload the processed file
+      const uploaded = await residentsApi.uploadPhoto(toUpload);
       if (requestId === photoRequestRef.current) setProfileImage(uploaded);
     } catch (err) {
       logUnexpected("Photo upload failed:", err);
@@ -258,7 +302,10 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         toast.error("Couldn't upload that photo. You can try again.");
       }
     } finally {
-      if (requestId === photoRequestRef.current) setUploadingPhoto(false);
+      if (requestId === photoRequestRef.current) {
+        setUploadingPhoto(false);
+        setProcessingPhoto(false);
+      }
     }
   };
 
@@ -295,10 +342,14 @@ export default function AuthForm({ type, next }: AuthFormProps) {
         }
 
         toast.success("Welcome Back");
-        // Drop the cached 401 from before login so the resident shell
-        // fetches the real user instead of redirecting back to /login.
         qc.removeQueries({ queryKey: CURRENT_USER_KEY });
-        router.replace(safeRedirect(next, destination));
+
+        const target =
+          role === "staff" && response.mustChangePassword
+            ? "/staff/change-password"
+            : safeRedirect(next, destination);
+
+        router.replace(target);
         router.refresh();
       } catch (err) {
         logUnexpected("login failed:", err);
@@ -331,9 +382,12 @@ export default function AuthForm({ type, next }: AuthFormProps) {
           firstName: v.firstName,
           lastName: v.lastName,
           middleName: v.middleName || undefined,
+          gender: v.gender,
+          civilStatus: v.civilStatus,
+          nationality: v.nationality.trim(),
           phone: v.phone,
           address: v.address,
-          dateOfBirth: v.dateOfBirth || undefined,
+          dateOfBirth: v.dateOfBirth,
           document: {
             imageUrl: idDoc.imageUrl,
             cloudinaryPublicId: idDoc.cloudinaryPublicId ?? undefined,
@@ -440,6 +494,8 @@ export default function AuthForm({ type, next }: AuthFormProps) {
   );
 
   const password = watch("password");
+  const dateOfBirth = watch("dateOfBirth");
+  const age = computeAge(dateOfBirth);
 
   if (isRegister && otpEmail) {
     return (
@@ -578,7 +634,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
                   idRequestRef.current++;
                   setIdDoc(null);
                   setExtracting(false);
-                  setIdMode(null); // back to the two options
+                  setIdMode(null);
                 }}
               />
               <button
@@ -591,7 +647,10 @@ export default function AuthForm({ type, next }: AuthFormProps) {
             </>
           )}
 
-          <ProgressBar value={idProgress} label="Reading details from your ID..." />
+          <ProgressBar
+            value={idProgress}
+            label="Reading details from your ID..."
+          />
         </div>
       )}
 
@@ -605,9 +664,32 @@ export default function AuthForm({ type, next }: AuthFormProps) {
               photoRequestRef.current++;
               setProfileImage(null);
               setUploadingPhoto(false);
+              setProcessingPhoto(false);
+              setWhitePreviewUrl(null);
             }}
           />
-          <ProgressBar value={photoProgress} label="Uploading photo..." />
+
+          {whitePreviewUrl && (
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={whitePreviewUrl}
+                alt="Profile photo with white background"
+                className="h-16 w-16 rounded-md border border-slate-200 bg-white object-cover"
+              />
+              <p className="text-xs text-slate-500">
+                Background replaced with white. Not happy with it? Remove the
+                photo and retake it against a plain, well-lit wall.
+              </p>
+            </div>
+          )}
+
+          <ProgressBar
+            value={photoProgress}
+            label={
+              processingPhoto ? "Removing background..." : "Uploading photo..."
+            }
+          />
         </div>
       )}
 
@@ -665,6 +747,28 @@ export default function AuthForm({ type, next }: AuthFormProps) {
 
       {isRegister && (
         <>
+          <SelectField
+            control={control}
+            name="gender"
+            label="Gender"
+            options={GENDER_OPTIONS}
+            autoComplete="sex"
+          />
+          <SelectField
+            control={control}
+            name="civilStatus"
+            label="Civil Status"
+            options={CIVIL_STATUS_OPTIONS}
+          />
+          <CustomInput
+            control={control}
+            name="nationality"
+            label="Nationality"
+            type="text"
+            placeholder="Filipino"
+            autoComplete="country-name"
+            maxLength={60}
+          />
           <CustomInput
             control={control}
             name="phone"
@@ -676,6 +780,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
           />
           {extracting ? (
             <>
+              <FieldSkeleton />
               <FieldSkeleton />
               <FieldSkeleton />
             </>
@@ -693,11 +798,28 @@ export default function AuthForm({ type, next }: AuthFormProps) {
               <CustomInput
                 control={control}
                 name="dateOfBirth"
-                label="Date of Birth (optional)"
+                label="Date of Birth"
                 type="date"
                 placeholder=""
                 autoComplete="bday"
               />
+              <div>
+                <label
+                  htmlFor="age"
+                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                >
+                  Age
+                </label>
+                <input
+                  id="age"
+                  type="text"
+                  value={age ?? ""}
+                  placeholder="Calculated from date of birth"
+                  readOnly
+                  tabIndex={-1}
+                  className="h-11 w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 outline-none"
+                />
+              </div>
             </>
           )}
         </>
@@ -833,7 +955,7 @@ export default function AuthForm({ type, next }: AuthFormProps) {
           onCapture={(file) => {
             void idUpload.select(file);
             void runIdExtraction(file);
-            setIdMode("upload"); // shows the captured photo with its remove button
+            setIdMode("upload");
             setShowIdCamera(false);
           }}
           onClose={() => setShowIdCamera(false)}

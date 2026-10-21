@@ -1,5 +1,5 @@
+import { CIVIL_STATUSES, computeAge, GENDERS } from "@/constant/resident.constants";
 import { z } from "zod";
-
 export type AuthType = "login" | "register";
 
 const PH_MOBILE_REGEX = /^(?:\+63|0)9\d{9}$/;
@@ -25,8 +25,14 @@ export const passwordField = z
   .refine((v) => /[a-z]/.test(v), "Include at least one lowercase letter")
   .refine((v) => /[A-Z]/.test(v), "Include at least one uppercase letter")
   .refine((v) => /[0-9]/.test(v), "Include at least one number")
-  .refine((v) => /[^A-Za-z0-9]/.test(v), "Include at least one special character")
-  .refine((v) => !COMMON_PASSWORDS.has(v.toLowerCase()), "This password is too common");
+  .refine(
+    (v) => /[^A-Za-z0-9]/.test(v),
+    "Include at least one special character",
+  )
+  .refine(
+    (v) => !COMMON_PASSWORDS.has(v.toLowerCase()),
+    "This password is too common",
+  );
 
 const emailField = z
   .string()
@@ -42,7 +48,10 @@ const phoneField = z
   .string()
   .trim()
   .transform(normalizePhone)
-  .refine((v) => PH_MOBILE_REGEX.test(v), "Enter a valid mobile number (e.g. 09XXXXXXXXX)");
+  .refine(
+    (v) => PH_MOBILE_REGEX.test(v),
+    "Enter a valid mobile number (e.g. 09XXXXXXXXX)",
+  );
 
 const nameField = (label: string) =>
   z
@@ -56,18 +65,38 @@ const middleNameField = z
   .string()
   .trim()
   .max(60, "Middle name is too long")
-  .refine((v) => v === "" || NAME_REGEX.test(v), "Middle name contains invalid characters")
+  .refine(
+    (v) => v === "" || NAME_REGEX.test(v),
+    "Middle name contains invalid characters",
+  )
   .optional();
 
-const addressField = z.string().trim().min(5, "Enter your complete address").max(255, "Address is too long");
+const addressField = z
+  .string()
+  .trim()
+  .min(5, "Enter your complete address")
+  .max(255, "Address is too long");
+
+const genderField = z.enum(GENDERS, { message: "Select your gender" });
+
+const civilStatusField = z.enum(CIVIL_STATUSES, {
+  message: "Select your civil status",
+});
+
+const nationalityField = z
+  .string()
+  .trim()
+  .min(1, "Nationality is required")
+  .max(60, "Nationality is too long");
 
 const dateOfBirthField = z
   .string()
-  .optional()
+  .min(1, "Date of birth is required")
   .refine(
-    (v) => !v || (!Number.isNaN(Date.parse(v)) && new Date(v) < new Date()),
+    (v) => computeAge(v) !== null && new Date(v) < new Date(),
     "Enter a valid date of birth",
-  );
+  )
+  .refine((v) => (computeAge(v) ?? 0) >= 18, "You must be at least 18 years old");
 
 export const loginSchema = z.object({
   email: emailField,
@@ -80,13 +109,18 @@ export const registerSchema = z
     firstName: nameField("First name"),
     middleName: middleNameField,
     lastName: nameField("Last name"),
+    gender: genderField,
+    civilStatus: civilStatusField,
+    nationality: nationalityField,
     email: emailField,
     phone: phoneField,
     address: addressField,
     dateOfBirth: dateOfBirthField,
     password: passwordField,
     confirmPassword: z.string(),
-    agreeTerms: z.boolean().refine((v) => v === true, "You must accept the Terms and Privacy Policy"),
+    agreeTerms: z
+      .boolean()
+      .refine((v) => v === true, "You must accept the Terms and Privacy Policy"),
     website: z.string().optional(),
   })
   .superRefine((data, ctx) => {
@@ -103,14 +137,18 @@ export interface AuthFormValues {
   firstName: string;
   middleName?: string;
   lastName: string;
+  gender: (typeof GENDERS)[number];
+  civilStatus: (typeof CIVIL_STATUSES)[number];
+  nationality: string;
   email: string;
   phone: string;
   address: string;
-  dateOfBirth?: string;
+  dateOfBirth: string;
   password: string;
   confirmPassword: string;
   agreeTerms: boolean;
   website?: string;
 }
 
-export const authFormSchema = (type: AuthType) => (type === "login" ? loginSchema : registerSchema);
+export const authFormSchema = (type: AuthType) =>
+  type === "login" ? loginSchema : registerSchema;

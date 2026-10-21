@@ -204,13 +204,7 @@ function splitFullName(
   };
 }
 
-/**
- * Layout-based fallback for cards that print values with no labels
- * (e.g. PhilHealth). Uses the date-of-birth line as an anchor:
- *   name    = closest letters-only line above it
- *   address = text lines below it, until footer noise
- * Only fills fields the label pass left empty.
- */
+
 function fillFromLayout(lines: string[], fields: ParsedIdFields) {
   // Anchor: first line that contains a parseable date ("OCTOBER 15, 2004 - MALE")
   const dobIdx = lines.findIndex((line) => parseDate(line) !== null);
@@ -333,10 +327,10 @@ export function parseIdText(rawText: string): {
     }
   }
 
-  // Pass 2: unlabeled cards (PhilHealth, etc.)
+
   fillFromLayout(lines, fields);
 
-  // ID number fallbacks for unlabeled cards
+
   if (!fields.idNumber) {
     const pin = rawText.match(PHILHEALTH_PIN)?.[0];
     fields.idNumber = pin

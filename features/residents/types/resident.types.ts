@@ -1,59 +1,7 @@
 import type { ParsedIdFields } from "@/lib/auth/id-parser";
+import type { Gender, CivilStatus } from "@/constant/resident.constants";
 
-export interface ExtractedIdFields {
-  firstName: string | null;
-  lastName: string | null;
-  middleName: string | null;
-  address: string | null;
-  dateOfBirth: string | null;
-  idNumber: string | null;
-}
-
-export interface ExtractIdResponse {
-  imageUrl: string;
-  cloudinaryPublicId: string | null;
-  rawText: string;
-  confidence: number;
-  fields: ExtractedIdFields;
-}
-
-export interface UploadedPhoto {
-  imageUrl: string;
-  cloudinaryPublicId: string;
-}
-
-export interface RegisterResidentPayload {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  middleName?: string;
-  phone: string;
-  address: string;
-  dateOfBirth?: string;
-  document: {
-    imageUrl: string;
-    cloudinaryPublicId?: string;
-    idNumber?: string;
-    rawOcrText?: string;
-    ocrConfidence?: number;
-  };
-  profileImage?: {
-    imageUrl: string;
-    cloudinaryPublicId?: string;
-  };
-}
-
-export interface InitiateRegistrationResponse {
-  email: string;
-  expiresInSeconds: number;
-  resendAvailableInSeconds: number;
-}
-
-export interface VerifyRegistrationPayload {
-  email: string;
-  otp: string;
-}
+export type { Gender, CivilStatus };
 
 export interface ExtractIdResult {
   fields: ParsedIdFields;
@@ -72,4 +20,55 @@ export interface InitiateRegistrationResult {
   email: string;
   expiresInSeconds: number;
   resendAvailableInSeconds: number;
+}
+
+export interface ExtractedIdFields {
+  firstName: string | null;
+  lastName: string | null;
+  middleName: string | null;
+  address: string | null;
+  dateOfBirth: string | null;
+  idNumber: string | null;
+}
+
+export interface ExtractIdResponse {
+  imageUrl: string;
+  cloudinaryPublicId: string | null;
+  rawText: string;
+  confidence: number;
+  fields: ExtractedIdFields;
+}
+
+export type UploadedPhoto = UploadPhotoResult;
+
+export type InitiateRegistrationResponse = InitiateRegistrationResult;
+
+export interface RegisterResidentPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  gender: Gender;
+  civilStatus: CivilStatus;
+  nationality: string;
+  phone: string;
+  address: string;
+  dateOfBirth: string;
+  document: {
+    imageUrl: string;
+    cloudinaryPublicId?: string;
+    idNumber?: string;
+    rawOcrText?: string;
+    ocrConfidence?: number;
+  };
+  profileImage?: {
+    imageUrl: string;
+    cloudinaryPublicId?: string;
+  };
+}
+
+export interface VerifyRegistrationPayload {
+  email: string;
+  otp: string;
 }

@@ -16,7 +16,7 @@ const pendingSchema = new Schema({
   reviewedAt: Date,
   attempts: { type: Number, default: 0 },
   otpSentAt: { type: Date, required: true },
-  expiresAt: { type: Date, required: true }, // OTP expiry only
+  expiresAt: { type: Date, required: true },
   purgeAt: { type: Date, required: true },
 });
 pendingSchema.index({ purgeAt: 1 }, { expireAfterSeconds: 0 });
